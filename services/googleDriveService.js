@@ -1,5 +1,5 @@
 const { google } = require("googleapis");
-const AccessToken = require("../gdrive/models/accessToken");
+const AccessToken = require("../models/accessToken");
 
 exports.getAnalytics = async (req, res) => {
   console.log("Retrieving analytics from Google Drive...");

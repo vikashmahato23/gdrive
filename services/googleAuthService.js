@@ -1,5 +1,5 @@
 const { OAuth2Client } = require("google-auth-library");
-const AccessToken = require("../gdrive/models/accessToken");
+const AccessToken = require("../models/accessToken");
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -22,6 +22,14 @@ exports.handleGoogleAuthCallback = async (req, res) => {
   const { tokens } = await oAuth2Client.getToken(code);
   console.log("Tokens received:", tokens);
   // Save tokens to MongoDB or perform any other necessary actions
+  // Save access token to MongoDB
+  const accessToken = new AccessToken({
+    userId: "user_id", // You can replace this with the actual user ID
+    accessToken: tokens.access_token,
+  });
+  await accessToken.save();
+
+  console.log("Access token saved to MongoDB.");
   res.redirect("/analytics");
 };
 

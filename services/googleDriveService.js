@@ -19,50 +19,83 @@ exports.getAnalytics = async (req, res) => {
 
     // Access user's files metadata using Google Drive API
     const drive = google.drive({ version: "v3", auth: oAuth2Client });
-    drive.files.list(
-      {
-        pageSize: 1000, // Increase the page size if needed
-        fields: "files(id, name, mimeType, size, webViewLink)",
-      },
-      (err, response) => {
-        if (err) {
-          console.error("Error retrieving files:", err);
-          return res
-            .status(500)
-            .send("Error retrieving files from Google Drive.");
+
+    // Helper function to list files with a query
+    const listFiles = async (query) => {
+      const response = await drive.files.list({
+        q: query,
+        pageSize: 1000,
+        fields:
+          "files(id, name, mimeType, size, webViewLink, owners, sharedWithMeTime, shared)",
+      });
+      return response.data.files;
+    };
+
+    // Retrieve files
+    const files = await listFiles("'me' in owners");
+
+    // Calculate analytics
+    const categorizeFiles = (files) => {
+      const categories = {
+        images: [],
+        videos: [],
+        pdfs: [],
+        others: [],
+      };
+
+      files.forEach((file) => {
+        if (file.mimeType.startsWith("image/")) {
+          categories.images.push(file);
+        } else if (file.mimeType.startsWith("video/")) {
+          categories.videos.push(file);
+        } else if (file.mimeType === "application/pdf") {
+          categories.pdfs.push(file);
+        } else {
+          categories.others.push(file);
         }
-        const files = response.data.files;
+      });
 
-        // Calculate analytics
-        let fileCount = 0;
-        let totalSize = 0;
-        const fileTypeDistribution = {};
-        const riskCounter = {}; // Assuming some arbitrary risk calculation
+      return categories;
+    };
 
-        files.forEach((file) => {
-          fileCount++;
-          totalSize += parseInt(file.size || 0); // Handle potential undefined size
-          const fileType = file.mimeType.split("/")[0];
-          fileTypeDistribution[fileType] = fileTypeDistribution[fileType]
-            ? fileTypeDistribution[fileType] + 1
-            : 1;
-          riskCounter[file.name] = Math.random(); // Assigning random risk
-        });
+    const calculateAnalytics = (files) => {
+      let fileCount = 0;
+      let totalSize = 0;
+      const fileTypeDistribution = {};
+      const riskCounter = {}; // Assuming some arbitrary risk calculation
 
-        const analytics = {
-          fileCount,
-          storageUsage: totalSize,
-          fileTypeDistribution,
-          filesWithLinks: files.map((file) => ({
-            name: file.name,
-            webViewLink: file.webViewLink,
-          })),
-          riskCounter,
-        };
+      files.forEach((file) => {
+        fileCount++;
+        totalSize += parseInt(file.size || 0); // Handle potential undefined size
+        const fileType = file.mimeType.split("/")[0];
+        fileTypeDistribution[fileType] = fileTypeDistribution[fileType]
+          ? fileTypeDistribution[fileType] + 1
+          : 1;
+        riskCounter[file.name] = Math.random(); // Assigning random risk
+      });
 
-        res.json(analytics);
-      }
-    );
+      return {
+        fileCount,
+        storageUsage: totalSize,
+        fileTypeDistribution,
+        filesWithLinks: files.map((file) => ({
+          name: file.name,
+          webViewLink: file.webViewLink,
+        })),
+        riskCounter,
+      };
+    };
+
+    const categories = categorizeFiles(files);
+
+    const analytics = {
+      images: calculateAnalytics(categories.images),
+      videos: calculateAnalytics(categories.videos),
+      pdfs: calculateAnalytics(categories.pdfs),
+      others: calculateAnalytics(categories.others),
+    };
+
+    res.json(analytics);
   } catch (error) {
     console.error("Error retrieving analytics:", error);
     res.status(500).send("Internal Server Error");

@@ -13,7 +13,7 @@ app.use(express.json());
 // Allow CORS for every site
 app.use(
   cors({
-    origin: "http://localhost:3000", // Replace with your frontend's URL
+    origin: "*", // Replace with your frontend's URL
     methods: "GET,POST",
     credentials: true,
   })

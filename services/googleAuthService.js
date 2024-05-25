@@ -1,6 +1,7 @@
 const { OAuth2Client } = require("google-auth-library");
 const axios = require("axios");
 const AccessToken = require("../models/accessToken");
+const { google } = require("googleapis");
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -17,7 +18,7 @@ exports.redirectToGoogleAuth = (req, res) => {
     access_type: "offline",
     scope: SCOPES,
   });
-  res.redirect(authUrl);
+  res.send(authUrl);
 };
 
 exports.handleGoogleAuthCallback = async (req, res) => {
@@ -47,21 +48,46 @@ exports.handleGoogleAuthCallback = async (req, res) => {
     );
 
     console.log("Access token and user ID saved to MongoDB.");
-
-    // Redirect to a route that displays analytics
-    res.redirect(`/analytics?userId=${userId}`);
+const frontendUrl = `${process.env.FRONTEND_URL}${userId}`;
+    // Redirect to a route that displays analytics/
+    res.redirect(frontendUrl);
+    // res.redirect(`/analytics?userId=${userId}`);
   } catch (error) {
     console.error("Error during Google authentication callback:", error);
     res.status(500).send("Internal Server Error");
   }
 };
 
+
 exports.revokeGoogleAccess = async (req, res) => {
   try {
     console.log("Revoking Google Drive access...");
-    const { userId } = req.body; // Get user ID from request body
 
-    // Find and delete the access token from MongoDB
+    const { userId } = req.body; // Get user ID from request body
+    console.log("Received userId:", userId); // Check if userId is received
+
+    if (!userId) {
+      return res.status(400).send("User ID is required");
+    }
+
+    // Retrieve the access token from MongoDB
+    const tokenDoc = await AccessToken.findOne({ userId });
+    if (!tokenDoc) {
+      return res.status(404).send("Access token not found for the user.");
+    }
+
+    // Initialize OAuth2 client
+    const oAuth2Client = new google.auth.OAuth2(
+      process.env.CLIENT_ID,
+      process.env.CLIENT_SECRET,
+      process.env.REDIRECT_URI
+    );
+    oAuth2Client.setCredentials({ access_token: tokenDoc.accessToken });
+
+    // Revoke the token
+    await oAuth2Client.revokeToken(tokenDoc.accessToken);
+
+    // Delete the access token from MongoDB
     await AccessToken.findOneAndDelete({ userId });
 
     console.log("Google Drive access revoked.");

@@ -28,7 +28,34 @@ exports.getAnalytics = async (req, res) => {
         fields:
           "files(id, name, mimeType, size, webViewLink, owners, sharedWithMeTime, shared)",
       });
-      return response.data.files;
+
+      const files = response.data.files.map((file) => ({
+        id: file.id,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+        webViewLink: file.webViewLink,
+        createdByUser: file.owners && file.owners.find((owner) => owner.me),
+        isShared: file.shared,
+      }));
+
+      // Fetch additional metadata for pictures (image/* MIME type)
+      const pictureFiles = files.filter((file) =>
+        file.mimeType.startsWith("image/")
+      );
+      await Promise.all(
+        pictureFiles.map(async (file) => {
+          const metadata = await drive.files.get({
+            fileId: file.id,
+            fields: "imageMediaMetadata",
+          });
+          if (metadata.data && metadata.data.imageMediaMetadata) {
+            file.imageMetadata = metadata.data.imageMediaMetadata;
+          }
+        })
+      );
+
+      return files;
     };
 
     // Retrieve files
@@ -78,16 +105,12 @@ exports.getAnalytics = async (req, res) => {
         fileCount,
         storageUsage: totalSize,
         fileTypeDistribution,
-        filesWithLinks: files.map((file) => ({
-          name: file.name,
-          webViewLink: file.webViewLink,
-        })),
+        filesWithDetails: files,
         riskCounter,
       };
     };
 
     const categories = categorizeFiles(files);
-
     const analytics = {
       images: calculateAnalytics(categories.images),
       videos: calculateAnalytics(categories.videos),

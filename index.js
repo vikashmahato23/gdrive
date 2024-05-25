@@ -5,10 +5,19 @@ require("dotenv").config();
 const authRoutes = require("./routes/auth");
 const analyticsRoutes = require("./routes/analytics");
 const revokeRoutes = require("./routes/revoke");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json());
 
+// Allow CORS for every site
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Replace with your frontend's URL
+    methods: "GET,POST",
+    credentials: true,
+  })
+);
 // MongoDB URI
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
